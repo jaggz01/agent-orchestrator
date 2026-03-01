@@ -1,0 +1,31 @@
+[project]
+name = "agentic-workflow-engine"
+version = "0.1.0"
+description = "Agentic workflow engine with orchestrator, spawner, and tool library"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "langchain>=0.2.0",
+  "langgraph>=0.2.0",
+  "pydantic>=2.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0",
+  "ruff>=0.5.0",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+
