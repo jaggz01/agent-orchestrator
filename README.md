@@ -15,7 +15,7 @@ This implementation uses **LangChain** and **LangGraph** as requested.
 ### 1) Agent Orchestrator (`orchestrator.py`)
 - Main controller that:
   - Takes a user objective.
-  - Generates a plan via LLM (or a robust fallback planner).
+  - Generates a plan via a configured LLM.
   - Stores the plan in an in-memory store.
   - Delegates execution to the spawner.
 - Supports asynchronous execution and a synchronous helper.
@@ -85,12 +85,18 @@ logs/agent_workflow.log
 
 ## How planning works
 
-- If an LLM is provided to `AgentOrchestrator`, it attempts to produce structured JSON plan steps.
-- If no LLM is provided (or parsing fails), it falls back to a deterministic two-step plan:
-  1. Context discovery (`RAG`-style step)
-  2. Reasoning/execution step
+- `AgentOrchestrator` always uses an LLM for planning.
+- If you pass `llm=...` to `AgentOrchestrator`, that model is used.
+- If you do not pass `llm`, the orchestrator builds a default model from env vars:
+  - `AGENTIC_DEFAULT_LLM_MODEL` (default: `gpt-4o-mini`)
+  - `AGENTIC_DEFAULT_LLM_PROVIDER` (default: `openai`)
 
-This gives you a reliable scaffold while integrating your own model provider.
+Example:
+
+```bash
+export AGENTIC_DEFAULT_LLM_PROVIDER=openai
+export AGENTIC_DEFAULT_LLM_MODEL=gpt-4o-mini
+```
 
 ---
 

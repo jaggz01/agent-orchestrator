@@ -10,8 +10,9 @@ from typing import Any
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 
+from .llm_config import build_default_llm
 from .logging_utils import build_spoolable_logger
-from .models import AgentSpec, AgentType, PlanStep, WorkflowPlan
+from .models import PlanStep, WorkflowPlan
 from .spawner import AgentSpawner
 from .tool_lib import AgentToolLibrary
 
@@ -30,7 +31,7 @@ class InMemoryPlanStore:
 
 
 class AgentOrchestrator:
-    """Orchestrator that uses LLM (or fallback logic) to create workflow plans."""
+    """Orchestrator that uses an LLM to create workflow plans."""
 
     def __init__(
         self,
@@ -39,38 +40,10 @@ class AgentOrchestrator:
         log_path: str = "logs/agent_workflow.log",
     ) -> None:
         self.tool_library = tool_library
-        self.llm = llm
+        self.llm = llm or build_default_llm()
         self.logger = build_spoolable_logger(log_path)
         self.plan_store = InMemoryPlanStore()
         self.spawner = AgentSpawner(tool_library=tool_library, log_path=log_path)
-
-    def _fallback_plan(self, objective: str) -> WorkflowPlan:
-        """Rule-based default plan used when LLM is absent or malformed."""
-
-        steps = [
-            PlanStep(
-                id="discover_context",
-                description="Gather relevant context for objective",
-                agent=AgentSpec(
-                    name="rag_researcher",
-                    agent_type=AgentType.RAG,
-                    system_prompts=["Retrieve and summarize context."],
-                    tool_names=["echo"],
-                ),
-            ),
-            PlanStep(
-                id="reason_and_execute",
-                description="Reason over context and produce actionable answer",
-                agent=AgentSpec(
-                    name="generic_executor",
-                    agent_type=AgentType.GENERIC,
-                    system_prompts=["Synthesize and execute the task."],
-                    tool_names=["word_count"],
-                ),
-                depends_on=["discover_context"],
-            ),
-        ]
-        return WorkflowPlan(objective=objective, steps=steps)
 
     def _parse_plan_payload(self, objective: str, payload: str) -> WorkflowPlan:
         parsed = json.loads(payload)
@@ -80,24 +53,14 @@ class AgentOrchestrator:
         return WorkflowPlan(objective=objective, steps=steps)
 
     async def plan(self, objective: str) -> WorkflowPlan:
-        if not self.llm:
-            self.logger.info("No LLM provided, using fallback planner")
-            plan = self._fallback_plan(objective)
-            self.plan_store.put(plan)
-            return plan
-
         prompt = (
             "Create a JSON object with key 'steps'. "
             "Each step must include id, description, agent{name, agent_type, system_prompts, tool_names}, "
             "and optional depends_on list."
             f" Objective: {objective}"
         )
-        try:
-            response = await self.llm.ainvoke([HumanMessage(content=prompt)])
-            plan = self._parse_plan_payload(objective, response.content)
-        except Exception as exc:  # noqa: BLE001
-            self.logger.warning("LLM planner failed (%s). Falling back.", exc)
-            plan = self._fallback_plan(objective)
+        response = await self.llm.ainvoke([HumanMessage(content=prompt)])
+        plan = self._parse_plan_payload(objective, response.content)
 
         self.plan_store.put(plan)
         self.logger.info("Plan created with %d steps", len(plan.steps))
