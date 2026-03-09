@@ -24,12 +24,28 @@ class AgentSpawner:
         self.tool_library = tool_library
         self.logger = build_spoolable_logger(log_path)
 
+    def _resolve_core_capabilities(self, step: PlanStep) -> dict[str, object]:
+        context: dict[str, object] = {}
+        for capability in step.agent.core_capabilities:
+            if capability == "rag_connection":
+                rag_db = self.tool_library.mcp_clients.get("rag_db")
+                if rag_db is None:
+                    raise RuntimeError("Agent requested 'rag_connection' but no rag_db client is registered")
+                context[capability] = rag_db
+            else:
+                self.logger.warning("Unknown core capability requested: %s", capability)
+        return context
+
     async def _execute_agent(self, step: PlanStep, state: SpawnState) -> dict[str, Any]:
         self.logger.info("Spawning agent %s (%s)", step.agent.name, step.agent.agent_type.value)
         tools = self.tool_library.resolve_tools(step.agent.tool_names)
+        core_context = self._resolve_core_capabilities(step)
 
         content = f"{step.description} | objective={state.get('objective', '')}"
         tool_outputs = []
+        if "rag_connection" in core_context:
+            tool_outputs.append("core:rag_connection=connected")
+
         for tool_name, tool_callable in tools.items():
             tool_output = tool_callable(content)
             tool_outputs.append(f"{tool_name}: {tool_output}")
