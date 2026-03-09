@@ -10,7 +10,7 @@ from typing import Any
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 
-from .llm_config import build_default_llm
+from .llm_config import AppConfig, build_default_llm, load_app_config
 from .logging_utils import build_spoolable_logger
 from .models import PlanStep, WorkflowPlan
 from .spawner import AgentSpawner
@@ -37,10 +37,13 @@ class AgentOrchestrator:
         self,
         tool_library: AgentToolLibrary,
         llm: BaseChatModel | None = None,
+        config: AppConfig | None = None,
+        config_path: str = "llm.config",
         log_path: str = "logs/agent_workflow.log",
     ) -> None:
         self.tool_library = tool_library
-        self.llm = llm or build_default_llm()
+        self.config = config or load_app_config(config_path)
+        self.llm = llm or build_default_llm(config=self.config, config_path=config_path)
         self.logger = build_spoolable_logger(log_path)
         self.plan_store = InMemoryPlanStore()
         self.spawner = AgentSpawner(tool_library=tool_library, log_path=log_path)
@@ -55,8 +58,9 @@ class AgentOrchestrator:
     async def plan(self, objective: str) -> WorkflowPlan:
         prompt = (
             "Create a JSON object with key 'steps'. "
-            "Each step must include id, description, agent{name, agent_type, system_prompts, tool_names}, "
-            "and optional depends_on list."
+            "Each step must include id, description, agent{name, agent_type, system_prompts, tool_names, core_capabilities}, "
+            "and optional depends_on list. "
+            "Use core_capabilities for non-tool capabilities such as 'rag_connection'."
             f" Objective: {objective}"
         )
         response = await self.llm.ainvoke([HumanMessage(content=prompt)])

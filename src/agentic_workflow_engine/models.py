@@ -24,6 +24,7 @@ class AgentSpec(BaseModel):
     agent_type: AgentType = Field(default=AgentType.GENERIC)
     system_prompts: list[str] = Field(default_factory=list)
     tool_names: list[str] = Field(default_factory=list)
+    core_capabilities: list[str] = Field(default_factory=list)
 
 
 class PlanStep(BaseModel):

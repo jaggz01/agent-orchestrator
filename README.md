@@ -87,15 +87,27 @@ logs/agent_workflow.log
 
 - `AgentOrchestrator` always uses an LLM for planning.
 - If you pass `llm=...` to `AgentOrchestrator`, that model is used.
-- If you do not pass `llm`, the orchestrator builds a default model from env vars:
-  - `AGENTIC_DEFAULT_LLM_MODEL` (default: `gpt-4o-mini`)
-  - `AGENTIC_DEFAULT_LLM_PROVIDER` (default: `openai`)
+- If you do not pass `llm`, the orchestrator **requires** `llm.config` and builds a `BaseChatModel` strictly from the values in that file (`provider`, `model`, optional `base_url`, `api_key`, `temperature`, `max_tokens`, `timeout`). If the file or required keys are missing, startup fails with an explicit error message.
 
-Example:
+Example `llm.config`:
 
-```bash
-export AGENTIC_DEFAULT_LLM_PROVIDER=openai
-export AGENTIC_DEFAULT_LLM_MODEL=gpt-4o-mini
+```ini
+[llm]
+provider = openai
+model = gpt-4o-mini
+base_url =
+api_key =
+temperature = 0.2
+max_tokens = 1200
+timeout = 60
+
+[rag]
+enabled = true
+provider = local
+database_path = data/rag_db.json
+collection = default
+semantic_search_threshold = 0.35
+top_k = 5
 ```
 
 ---
@@ -128,3 +140,12 @@ Then pass `lib` into the orchestrator.
 
 - This repo is intentionally modular so each component can evolve independently.
 - The starter code is ready for you to integrate real LLM providers, RAG index clients, DB connectors, and image tooling.
+
+
+## RAG capabilities and tools
+
+- `default_tool_library(config=...)` now creates a configured RAG client when `[rag].enabled=true`.
+- Core capability `rag_connection` is resolved by the spawner (non-tool capability) before tool execution.
+- Tools provided:
+  - `rag_upload_documents` (uploads docs to vector DB).
+  - `rag_semantic_search` (semantic retrieval with configurable threshold/top-k).
